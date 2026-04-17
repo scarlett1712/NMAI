@@ -14,8 +14,8 @@ MAZE_ROWS = 21
 TILE_W = SCREEN_W // MAZE_COLS
 TILE_H = SCREEN_H // MAZE_ROWS
 
-# Vision radius (Manhattan distance)
-VISION_RADIUS = 4
+# Vision radius (Manhattan distance) — GIẢM NHƯ YÊU CẦU
+VISION_RADIUS = 3
 
 # Entities
 NUM_WATER_TRAPS = 6
@@ -24,7 +24,7 @@ NUM_TELEPORT_PAIRS = 1
 
 # Guard
 GUARD_VISION = 5
-GUARD_SPEED_FRAMES = 12   # move every N frames
+GUARD_SPEED_FRAMES = 20   # move every N frames
 
 # Colors — minimalist dark palette
 C_BG           = (18, 10, 8)       # deep dark brown-black

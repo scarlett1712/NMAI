@@ -1,5 +1,6 @@
 import random
 from settings import *
+from pathfinding import bfs   # ← thêm để tính safe path
 
 
 class Maze:
@@ -66,8 +67,15 @@ class Maze:
     def _place_elements(self):
         reserved = {self.start, self.exit}
 
+        # FIX LOGIC: random bẫy nước + teleport nhưng KO ĐƯỢC CHẶN HẾT ĐƯỜNG ĐI
+        # Tính đường ngắn nhất trước, sau đó loại các ô trên đường này ra khỏi candidates của WATER
+        # → luôn tồn tại ít nhất 1 đường an toàn (không rơi bẫy nước)
+        opt_path = bfs(self, self.start, self.exit)
+        safe_cells = set(opt_path) if opt_path else set()
+
         # --- water traps ---
         candidates = self._free_floor_cells(reserved)
+        candidates = [c for c in candidates if c not in safe_cells]   # ← FIX quan trọng
         random.shuffle(candidates)
         for _ in range(NUM_WATER_TRAPS):
             if candidates:
