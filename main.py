@@ -272,10 +272,6 @@ def draw_player(surf, player, t):
     size = TILE_W - 8
     body = pygame.Rect(r.centerx - size//2, r.centery - size//2, size, size)
     pygame.draw.rect(surf, C_PLAYER, body)
-    tip = (r.centerx, r.bottom - 1)
-    left = (r.centerx - size//3, r.centery + size//4)
-    right = (r.centerx + size//3, r.centery + size//4)
-    pygame.draw.polygon(surf, C_PLAYER_GLOW, [left, right, tip])
 
 
 def draw_guard(surf, guard, player_x, player_y, t):
