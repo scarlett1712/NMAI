@@ -312,12 +312,101 @@ def draw_guard_state_hud(surf, guards, font_small):
         surf.blit(s, (SCREEN_W - s.get_width() - 8, 8))
 
 
-def draw_hint_button(surf, hint_btn, cooldown_remaining, font_small):
-    color = (80, 80, 80) if cooldown_remaining > 0 else C_PATH_OPT
-    pygame.draw.circle(surf, color, hint_btn.center, 28)
-    pygame.draw.circle(surf, (255,255,255), hint_btn.center, 28, 3)
-    bulb = font_small.render("💡", True, (255, 255, 200))
-    surf.blit(bulb, bulb.get_rect(center=hint_btn.center))
+def draw_bulb_icon(surf, center, size, color, lit=True):
+    """Vẽ biểu tượng bóng đèn bằng vector để không phụ thuộc vào font emoji"""
+    cx, cy = center
+    # Phần kính (thân bóng đèn)
+    r = int(size * 0.3)
+    glass_color = color if lit else (70, 70, 70)
+    # Vẽ phần đầu tròn
+    pygame.draw.circle(surf, glass_color, (cx, cy - int(size * 0.1)), r)
+    # Vẽ phần cổ bóng đèn (hình chữ nhật nhỏ nối với đế)
+    neck_w = int(r * 1.1)
+    neck_h = int(size * 0.15)
+    neck_rect = pygame.Rect(cx - neck_w // 2, cy - int(size * 0.05), neck_w, neck_h)
+    pygame.draw.rect(surf, glass_color, neck_rect)
+    
+    # Phần đế kim loại
+    base_w = int(r * 0.9)
+    base_h = int(size * 0.18)
+    base_color = (130, 130, 130) if lit else (60, 60, 60)
+    base_rect = pygame.Rect(cx - base_w // 2, cy + int(size * 0.1), base_w, base_h)
+    pygame.draw.rect(surf, base_color, base_rect, border_radius=2)
+    # Các sọc trên đế
+    for i in range(2):
+        y = base_rect.top + (i + 1) * (base_h // 3)
+        pygame.draw.line(surf, (80, 80, 80), (base_rect.left + 2, y), (base_rect.right - 2, y), 1)
+        
+    # Sợi tóc bóng đèn (nếu đang sáng)
+    if lit:
+        eye_color = (255, 255, 255)
+        # Vẽ một chút lấp lánh bên trong
+        pygame.draw.circle(surf, eye_color, (cx - r//3, cy - size//6), 2)
+
+
+def draw_hint_button(surf, hint_btn, cooldown_remaining, font_small, t, mouse_pos):
+    cx, cy = hint_btn.center
+    is_hover = hint_btn.collidepoint(mouse_pos)
+    
+    # Cooldown percentage
+    cooldown_max = 45.0
+    progress = max(0.0, min(1.0, cooldown_remaining / cooldown_max))
+    
+    base_r = 28
+    if cooldown_remaining <= 0:
+        # --- TRẠNG THÁI SẴN SÀNG (PREMIUM) ---
+        pulse = 2.0 * math.sin(t * 8)
+        hover_scale = 1.15 if is_hover else 1.0
+        r = int(base_r * hover_scale + pulse)
+        
+        # 1. Hào quang Neon đa tầng (Multi-layered Glow)
+        for i in range(3):
+            glow_r = r + 6 + i * 8 + int(3 * math.sin(t * 4 + i))
+            glow_alpha = int((50 - i * 15) * (1.3 if is_hover else 1.0))
+            if glow_alpha > 0:
+                g_surf = pygame.Surface((glow_r * 2 + 4, glow_r * 2 + 4), pygame.SRCALPHA)
+                pygame.draw.circle(g_surf, (*C_PATH_OPT, glow_alpha), (glow_r, glow_r), glow_r)
+                surf.blit(g_surf, (cx - glow_r, cy - glow_r))
+            
+        # 2. Thân nút chính (Main Body)
+        body_color = C_PATH_OPT if not is_hover else (100, 255, 170)
+        pygame.draw.circle(surf, body_color, (cx, cy), r)
+        
+        # 3. Hiệu ứng gương kính (Specular Highlight)
+        highlight_surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        h_rect = pygame.Rect(int(r * 0.3), int(r * 0.2), int(r * 1.0), int(r * 0.6))
+        pygame.draw.ellipse(highlight_surf, (255, 255, 255, 90), h_rect)
+        surf.blit(highlight_surf, (cx - r, cy - r))
+        
+        # 4. Viền trắng bóng bẩy
+        pygame.draw.circle(surf, (255, 255, 255), (cx, cy), r, 3)
+        
+        # 5. Vẽ Icon bóng đèn
+        draw_bulb_icon(surf, (cx, cy), int(r * 1.1), (255, 255, 150), True)
+    else:
+        # --- TRẠNG THÁI HỒI CHIÊU (COOLDOWN) ---
+        r = base_r
+        # Thân nút tối
+        pygame.draw.circle(surf, (35, 35, 35), (cx, cy), r)
+        
+        # Vòng track bên ngoài
+        pygame.draw.circle(surf, (60, 60, 60), (cx, cy), r + 5, 2)
+        
+        # Vòng cung tiến trình (Glowing Arc)
+        rect = pygame.Rect(cx - r - 5, cy - r - 5, (r + 5) * 2, (r + 5) * 2)
+        start_angle = -math.pi / 2
+        stop_angle = start_angle + (progress * 2 * math.pi)
+        if progress > 0:
+            # Hiệu ứng glow cho vòng cung
+            pygame.draw.arc(surf, (100, 200, 255), rect, start_angle, stop_angle, 6)
+            pygame.draw.arc(surf, (255, 255, 255), rect, start_angle, stop_angle, 2)
+            
+        # Icon bóng đèn mờ
+        draw_bulb_icon(surf, (cx, cy), int(r * 1.0), (80, 80, 80), False)
+        
+        # Text đếm ngược (đưa xuống dưới nút để không che icon)
+        cd_text = font_small.render(str(int(cooldown_remaining + 1)), True, (180, 180, 180))
+        surf.blit(cd_text, cd_text.get_rect(center=(cx, cy + r + 18)))
 
 
 # ======================================================================
@@ -639,7 +728,7 @@ class Game:
         if self.state != STATE_WIN:
             draw_hud(self.screen, self.player, self.elapsed, self.font_small)
             draw_guard_state_hud(self.screen, self.guards, self.font_small)
-            draw_hint_button(self.screen, self.hint_btn, self.hint_cooldown, self.font_small)
+            draw_hint_button(self.screen, self.hint_btn, self.hint_cooldown, self.font_small, t, pygame.mouse.get_pos())
 
         # Flash khi chết hoặc teleport
         if self.state in (STATE_DEAD_WATER, STATE_DEAD_GUARD, STATE_TELEPORTING):
