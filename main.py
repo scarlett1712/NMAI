@@ -154,8 +154,21 @@ def build_fog(player_x, player_y, visited, radius, exit_pos):
 #  Draw maze
 # ======================================================================
 
+def _path_centers(path):
+    return [(x * TILE_W + TILE_W // 2, y * TILE_H + TILE_H // 2) for x, y in path]
+
+
+def draw_path_line(surf, path, color, width, alpha=255):
+    if len(path) < 2:
+        return
+    layer = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+    pts = _path_centers(path)
+    pygame.draw.lines(layer, (*color, alpha), False, pts, width)
+    surf.blit(layer, (0, 0))
+
+
 def draw_maze(surf, maze, player_x, player_y, visited, radius,
-              player_path, opt_path, show_paths, t):
+              player_path, opt_path, show_paths, t, win_timer=0):
     for y in range(maze.rows):
         for x in range(maze.cols):
             dist = abs(x - player_x) + abs(y - player_y)
@@ -174,16 +187,6 @@ def draw_maze(surf, maze, player_x, player_y, visited, radius,
             else:
                 pygame.draw.rect(surf, C_FLOOR, r)
 
-            if show_paths:
-                if (x, y) in opt_path:
-                    hl = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
-                    hl.fill((*C_PATH_OPT, 80))
-                    surf.blit(hl, r.topleft)
-                elif (x, y) in player_path:
-                    hl = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
-                    hl.fill((*C_PATH_PLAYER, 50))
-                    surf.blit(hl, r.topleft)
-
             if cell == EXIT:
                 draw_exit_star(surf, x, y, t)
             elif cell == WATER:
@@ -191,14 +194,42 @@ def draw_maze(surf, maze, player_x, player_y, visited, radius,
             elif cell == TELEPORT:
                 draw_teleport_tile(surf, x, y)
 
-    draw_wall_lines(surf, maze, player_x, player_y, visited, radius)
+    draw_wall_lines(surf, maze, player_x, player_y, visited, radius, show_paths)
+
+    if show_paths:
+        opt_path_set = set(opt_path)
+
+        # Phase 1 (1.5s+): to trang ca o duong ngan nhat
+        opt_alpha = min(255, int((win_timer - 1.5) / 0.6 * 255)) if win_timer >= 1.5 else 0
+        if opt_alpha > 0:
+            for oy in range(maze.rows):
+                for ox in range(maze.cols):
+                    if (ox, oy) in opt_path_set:
+                        orl = tile_rect(ox, oy)
+                        hl = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
+                        pulse = int(30 * math.sin(t * 5))
+                        hl.fill((255, 255, 255, min(255, 160 + pulse)))
+                        surf.blit(hl, orl.topleft)
+
+        # Phase 2 (2.5s+): replay tung buoc player co cham xanh dau duong
+        if win_timer >= 2.5 and len(player_path) >= 2:
+            steps_shown = int((win_timer - 2.5) / 0.08) + 2
+            steps_shown = min(steps_shown, len(player_path))
+            visible_path = player_path[:steps_shown]
+            draw_path_line(surf, visible_path, (60, 160, 255), 2, 220)
+            if steps_shown < len(player_path):
+                hx, hy = visible_path[-1]
+                hr = tile_rect(hx, hy)
+                dot_pulse = int(3 * math.sin(t * 10))
+                pygame.draw.circle(surf, (140, 210, 255), hr.center, TILE_W // 4 + dot_pulse)
+                pygame.draw.circle(surf, (220, 240, 255), hr.center, TILE_W // 8)
 
 
-def draw_wall_lines(surf, maze, px, py, visited, radius):
+def draw_wall_lines(surf, maze, px, py, visited, radius, show_paths=False):
     for y in range(maze.rows):
         for x in range(maze.cols):
             dist = abs(x - px) + abs(y - py)
-            if dist > radius and (x, y) not in visited and (x, y) != maze.exit:
+            if not show_paths and dist > radius and (x, y) not in visited and (x, y) != maze.exit:
                 continue
             if maze.grid[y][x] == WALL:
                 r = tile_rect(x, y)
@@ -319,7 +350,7 @@ def draw_win_screen(surf, player, elapsed, opt_path, font_large, font_med, font_
     draw_text_centered(surf, f"Efficiency : {efficiency:.0f}%", font_med, eff_color, cy, alpha)
     cy += 60
 
-    legend = font_small.render("  Green = optimal path    Red = your path", True, C_TEXT_DIM)
+    legend = font_small.render("  White = optimal path    Blue = your path", True, C_TEXT_DIM)
     legend.set_alpha(alpha)
     surf.blit(legend, (SCREEN_W // 2 - legend.get_width() // 2, cy))
     cy += 30
@@ -345,7 +376,7 @@ def draw_menu(surf, stars, t, play_btn, instr_btn, show_instructions, font_large
     surf.blit(instr_txt, instr_txt.get_rect(center=instr_btn.center))
 
     if show_instructions:
-        popup_w, popup_h = 650, 480
+        popup_w, popup_h = 650, 580
         popup = pygame.Rect(SCREEN_W // 2 - popup_w//2, SCREEN_H // 2 - popup_h//2, popup_w, popup_h)
         pygame.draw.rect(surf, (25, 20, 18), popup, border_radius=16)
         pygame.draw.rect(surf, C_LINE, popup, 6, border_radius=16)
@@ -355,17 +386,19 @@ def draw_menu(surf, stars, t, play_btn, instr_btn, show_instructions, font_large
 
         lines = [
             "ĐIỀU KHIỂN:", "   WASD / ↑↓←→ : Di chuyển", "   R             : Tạo map mới / chơi lại", "",
-            "MỤC TIÊU:", "   Đến Exit (ngôi sao sáng) mà không bị bắt!", "",
+            "MỤC TIÊU:", "   Hãy tìm ngôi sao sáng mà không bị bắt!", "",
             "CÁC YẾU TỐ:",
-            "   • Bẫy nước (elip xanh): Rơi vào → reset về Start",
-            "   • Cổng teleport (vòng tím): Dịch chuyển ngay",
-            "   • Lính canh (X đỏ): Thấy bạn sẽ đuổi theo", "",
-            "Fog of war: Tầm nhìn chỉ 3 ô, mờ dần ra xa.",
-            "Phát sáng quanh nhân vật — tránh lính canh thông minh!",
+            "   • Nước độc: Rơi vào → Ựa X",
+            "   • Cổng teleport: Dịch chuyển đến cổng khác ",""
+            "     (hãy nhớ cổng có 2 chiều)",""
+            "   • Lính canh: Thấy là dí té khói", "",
+            "Fog of war: Xung quanh tối tăm mịt mù",
+            "Chỉ bạn là có hào quang nhân vật chính ",""
+            "_Nếu bạn không thấy lính, nó cũng sẽ không thấy bạn!_",
         ]
         y = popup.top + 95
         for line in lines:
-            color = (240, 230, 210) if "Fog of war" in line or "Phát sáng" in line else C_TEXT_DIM
+            color = (240, 230, 210) if "hào quang" in line  or "sáng" in line else C_TEXT_DIM
             txt_surf = font_small.render(line, True, color)
             surf.blit(txt_surf, (popup.left + 50, y))
             y += 29
@@ -429,6 +462,7 @@ class Game:
         self.flash_timer = 0
         self.flash_color = C_WATER
         self.win_alpha = 0
+        self.win_timer = 0.0
         self.opt_path = []
         self.opt_path_set = set()
         self._teleport_dest = None
@@ -480,7 +514,7 @@ class Game:
                     elif self.instr_btn.collidepoint(mx, my):
                         self.show_instructions = True
                     elif self.show_instructions:
-                        popup = pygame.Rect(SCREEN_W // 2 - 325, SCREEN_H // 2 - 240, 650, 520)
+                        popup = pygame.Rect(SCREEN_W // 2 - 325, SCREEN_H // 2 - 290, 650, 580)
                         close_rect = pygame.Rect(popup.right - 55, popup.top + 22, 38, 38)
                         if close_rect.collidepoint(mx, my):
                             self.show_instructions = False
@@ -524,6 +558,8 @@ class Game:
         self.elapsed = time.time() - self.start_time
         self.opt_path = bfs(self.maze, self.maze.start, self.maze.exit)
         self.opt_path_set = set(self.opt_path)
+        self.win_timer = 0.0
+        self.win_alpha = 0
 
     def _trigger_guard_death(self):
         self.state = STATE_DEAD_GUARD
@@ -560,8 +596,9 @@ class Game:
                 self.state = STATE_PLAY
 
         elif self.state == STATE_WIN:
-            if self.win_alpha < 255:
-                self.win_alpha = min(255, self.win_alpha + 3)
+            self.win_timer += dt
+            if self.win_timer >= 7.0:
+                self.win_alpha = min(255, self.win_alpha + 4)
 
     def _draw(self, t):
         if self.state == STATE_MENU:
@@ -573,20 +610,21 @@ class Game:
         draw_stars(self.screen, self.stars, t)
 
         show_paths = (self.state == STATE_WIN)
-        player_path_set = set(self.player.path) if show_paths else set()
 
         # Vẽ mê cung + ngôi sao Exit
         draw_maze(self.screen, self.maze, self.player.x, self.player.y,
                   self.player.visited, VISION_RADIUS,
-                  player_path_set, self.opt_path_set, show_paths, t)
+                  list(self.player.path), self.opt_path, show_paths, t,
+                  self.win_timer if self.state == STATE_WIN else 0)
 
         for g in self.guards:
             draw_guard(self.screen, g, self.player.x, self.player.y, t)
         draw_player(self.screen, self.player, t)
 
         # Fog of war
-        fog = build_fog(self.player.x, self.player.y, self.player.visited, VISION_RADIUS, self.maze.exit)
-        self.screen.blit(fog, (0, 0))
+        if self.state != STATE_WIN:
+            fog = build_fog(self.player.x, self.player.y, self.player.visited, VISION_RADIUS, self.maze.exit)
+            self.screen.blit(fog, (0, 0))
 
         # Vẽ mũi tên gợi ý (nếu đang active)
         if self.hint_timer > 0 and len(self.hint_path) > 1:
@@ -627,7 +665,7 @@ class Game:
 
         # Hint dưới cùng
         bottom_hint = self.font_small.render("WASD / Arrow keys   R = map mới", True, C_TEXT_DIM)
-        self.screen.blit(bottom_hint, (SCREEN_W // 2 - bottom_hint.get_width() // 2, SCREEN_H - 22))
+        self.screen.blit(bottom_hint, (SCREEN_W // 2 - bottom_hint.get_width() // 2, SCREEN_H - 36))
 
 
 if __name__ == '__main__':

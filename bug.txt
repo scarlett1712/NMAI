@@ -1,7 +1,0 @@
-11:52am - 17/4/26 
-1. sửa frame hướng dẫn bị đè nét
-2. sửa logic nút gợi ý thì chỉ HƯỚNG đến đích thôi chứ không chỉ đường
-3. sửa nút gợi ý khi đang cool down nếu bấm vào thì ra popup "Đang hồi chiêu, hãy chờ ... s"
-4. sửa icon nút gợi ý đẹp hơn
-5. sửa icon ngôi sao đích
-6. sửa logic end game: khi chạm đích, auto hiển thị lại full map và đường đi của ng chơi
