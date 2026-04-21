@@ -633,7 +633,8 @@ class Game:
                         self.start_time += (time.time() - self.pause_start_time)
                         self.state = STATE_PLAY
                     elif self.replay_btn.collidepoint(mx, my):
-                        self._new_game()
+                        # Gọi hàm chơi lại map hiện tại
+                        self._replay_current_map()
                     elif self.exit_btn.collidepoint(mx, my):
                         self.state = STATE_MENU
 
@@ -680,6 +681,31 @@ class Game:
         self.state = STATE_DEAD_GUARD
         self.flash_timer = 1.0
         self.flash_color = C_GUARD_CHASE
+
+    def _replay_current_map(self):
+            #Khởi tạo lại trạng thái game nhưng GIỮ NGUYÊN map hiện tại (self.maze)
+            
+            # 1. Đưa player về vạch xuất phát (dùng hàm reset có sẵn của class Player)
+            self.player.reset_to_start()
+            
+            # 2. Hồi sinh/Đưa lính canh về đúng vị trí xuất phát ban đầu của map này
+            self.guards = [Guard(gx, gy, self.maze) for gx, gy in self.maze.guard_starts]
+            
+            # 3. Reset lại toàn bộ thông số thời gian, trạng thái, hint
+            self.state = STATE_PLAY
+            self.start_time = time.time()
+            self.elapsed = 0.0
+            self.flash_timer = 0
+            self.win_alpha = 0
+            self.win_timer = 0.0
+            self.opt_path = []
+            self.opt_path_set = set()
+            self._teleport_dest = None
+
+            self.hint_path = []
+            self.hint_timer = 0.0
+            self.hint_cooldown = 0.0
+            self.cd_warn_timer = 0.0
 
     def _update(self, dt, t):
         #Trừ hao thời gian của thông báo
