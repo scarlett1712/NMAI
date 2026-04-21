@@ -58,84 +58,40 @@ def draw_stars(surf, stars, t):
 
 
 # ======================================================================
-#  Glowing Star for Exit (luôn hiển thị)
+#  Exit marker — vẽ sau lớp fog: luôn sáng trên map mờ
 # ======================================================================
 
-def draw_exit_star(surf, x, y, t):
-    """Ngôi sao phát sáng đẹp, mượt mà - luôn hiển thị rõ"""
+def draw_exit_star_bright(surf, x, y):
+    """Ngôi sao 5 cánh + quầng sáng tĩnh; gọi sau `blit(fog)` để không bị fog làm mờ."""
     r = tile_rect(x, y)
-    cx = r.centerx
-    cy = r.centery
-    base_size = TILE_W * 0.52   # Kích thước vừa phải
+    cx, cy = r.centerx, r.centery
+    glow = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
+    gcx, gcy = TILE_W // 2, TILE_H // 2
+    rr = min(TILE_W, TILE_H)
+    pygame.draw.circle(glow, (255, 255, 255, 55), (gcx, gcy), int(rr * 0.52))
+    pygame.draw.circle(glow, (255, 255, 255, 95), (gcx, gcy), int(rr * 0.34))
+    surf.blit(glow, r.topleft)
 
-    # Pulse nhịp nhàng
-    pulse = 0.85 + 0.15 * math.sin(t * 5.5)
-
-    # Glow ngoài cùng (mờ, to)
-    glow_surf = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
-    glow_size = int(base_size * 1.85 * pulse)
-    points = []
-    for i in range(8):
-        ang = i * math.pi / 4 + t * 1.2
-        rx = glow_size * (0.9 if i % 2 == 0 else 0.55)
-        ry = glow_size * (0.55 if i % 2 == 0 else 0.9)
-        px = cx + rx * math.cos(ang)
-        py = cy + ry * math.sin(ang)
-        points.append((px, py))
-    pygame.draw.polygon(glow_surf, (*C_EXIT, 45), points)
-    surf.blit(glow_surf, r.topleft)
-
-    # Glow giữa (sáng hơn)
-    glow_surf2 = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
-    glow_size2 = int(base_size * 1.35 * pulse)
-    points2 = []
-    for i in range(8):
-        ang = i * math.pi / 4 - t * 0.8
-        rx = glow_size2 * (0.85 if i % 2 == 0 else 0.6)
-        ry = glow_size2 * (0.6 if i % 2 == 0 else 0.85)
-        px = cx + rx * math.cos(ang)
-        py = cy + ry * math.sin(ang)
-        points2.append((px, py))
-    pygame.draw.polygon(glow_surf2, (*C_EXIT, 90), points2)
-    surf.blit(glow_surf2, r.topleft)
-
-    # Ngôi sao chính (sáng nhất)
-    star_size = int(base_size * pulse)
-    star_points = []
-    for i in range(8):
-        ang = i * math.pi / 4
-        length = star_size if i % 2 == 0 else star_size * 0.42
-        px = cx + length * math.cos(ang)
-        py = cy + length * math.sin(ang)
-        star_points.append((px, py))
-
-    pygame.draw.polygon(surf, C_EXIT, star_points)
-    
-    # Điểm sáng ở giữa ngôi sao
-    pygame.draw.circle(surf, (255, 255, 255), (cx, cy), int(star_size * 0.28))
-
-    # Tia sáng nhỏ ngẫu nhiên (tăng độ lung linh)
-    for i in range(4):
-        ang = t * 3 + i * 1.57
-        length = star_size * 1.6
-        tx = cx + length * math.cos(ang)
-        ty = cy + length * math.sin(ang)
-        pygame.draw.line(surf, (*C_EXIT, 120), (cx, cy), (tx, ty), 2)
+    outer = rr * 0.42
+    inner = outer * 0.38
+    pts = []
+    for i in range(10):
+        ang = -math.pi / 2 + i * (math.pi / 5)
+        rad = outer if i % 2 == 0 else inner
+        pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
+    pygame.draw.polygon(surf, (255, 255, 255), pts)
+    pygame.draw.polygon(surf, C_LINE, pts, 1)
 
 # ======================================================================
-#  Fog of war - Exit luôn hiển thị
+#  Fog of war
 # ======================================================================
 
-def build_fog(player_x, player_y, visited, radius, exit_pos):
+def build_fog(player_x, player_y, visited, radius):
     fog = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
     fog.fill((*C_FOG, 255))
-    ex, ey = exit_pos
 
     for y in range(MAZE_ROWS):
         for x in range(MAZE_COLS):
-            if (x, y) == (ex, ey):
-                continue  # Exit không bị fog che
-
             dist = abs(x - player_x) + abs(y - player_y)
             r = tile_rect(x, y)
 
@@ -188,7 +144,7 @@ def draw_maze(surf, maze, player_x, player_y, visited, radius,
                 pygame.draw.rect(surf, C_FLOOR, r)
 
             if cell == EXIT:
-                draw_exit_star(surf, x, y, t)
+                pass  # ngôi sao đích vẽ sau lớp fog (draw_exit_star_bright)
             elif cell == WATER:
                 draw_water_tile(surf, x, y)
             elif cell == TELEPORT:
@@ -773,7 +729,7 @@ class Game:
 
         show_paths = (self.state == STATE_WIN)
 
-        # Vẽ mê cung + ngôi sao Exit
+        # Vẽ mê cung (sao đích vẽ sau fog)
         draw_maze(self.screen, self.maze, self.player.x, self.player.y,
                   self.player.visited, VISION_RADIUS,
                   list(self.player.path), self.opt_path, show_paths, t,
@@ -785,8 +741,12 @@ class Game:
 
         # Fog of war
         if self.state != STATE_WIN:
-            fog = build_fog(self.player.x, self.player.y, self.player.visited, VISION_RADIUS, self.maze.exit)
+            fog = build_fog(self.player.x, self.player.y, self.player.visited, VISION_RADIUS)
             self.screen.blit(fog, (0, 0))
+
+        # Đích: luôn sáng, vẽ trên fog / visited mờ
+        ex, ey = self.maze.exit
+        draw_exit_star_bright(self.screen, ex, ey)
 
         # SỬA LOGIC NÚT GỢI Ý (CHỈ HIỂN THỊ BƯỚC TIẾP THEO)
         # Vẽ mũi tên gợi ý (nếu đang active)
