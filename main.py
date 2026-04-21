@@ -454,7 +454,7 @@ def draw_pause_overlay(surf, game, font_med, font_small):
     pygame.draw.rect(surf, (30, 30, 35), game.pause_popup_rect, border_radius=15)
     pygame.draw.rect(surf, C_LINE, game.pause_popup_rect, 3, border_radius=15)
     
-    draw_text_centered(surf, "PAUSED", game.font_large, (255, 255, 255), game.pause_popup_rect.top + 20)
+    draw_text_centered(surf, "PAUSED", game.font_large, (255, 255, 255), game.pause_popup_rect.top + 5) #sửa chữ đè nút
 
     # Các nút: Resume, Replay, Exit
     for btn, label, color in [
