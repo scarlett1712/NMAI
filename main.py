@@ -510,7 +510,7 @@ class Game:
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
-        self.pause_btn = pygame.Rect(SCREEN_W - 108, 8, 40, 40)
+        self.pause_btn = pygame.Rect(SCREEN_W - 145, 25, 56, 56)
         self.pause_popup_rect = pygame.Rect(SCREEN_W // 2 - 150, SCREEN_H // 2 - 125, 300, 250)
 
         self.font_large = pygame.font.SysFont('consolas', 48, bold=True)
@@ -804,7 +804,7 @@ class Game:
                 is_hover = self.pause_btn.collidepoint(mouse_pos)
                 
                 cx, cy = self.pause_btn.center
-                r = max(12, min(self.pause_btn.width, self.pause_btn.height) // 2 - 3)
+                r = 28 # Bán kính nút (56 / 2)
                 
                 # Tính toán màu sắc dựa trên trạng thái Hover
                 if is_hover:
@@ -823,15 +823,13 @@ class Game:
                 pygame.draw.circle(self.screen, border_color, (cx, cy), r, 2)
                 
                 # 3. Vẽ biểu tượng Pause (||) căn giữa tuyệt đối
-                bar_w = max(3, int(r * 0.22))
-                bar_h = max(10, int(r * 0.72))
-                gap = max(3, int(r * 0.24))
+                bar_w, bar_h = 6, 20
                 # Vạch trái
                 pygame.draw.rect(self.screen, bar_color, 
-                                 (cx - gap - bar_w // 2, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
+                                 (cx - 8, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
                 # Vạch phải
                 pygame.draw.rect(self.screen, bar_color, 
-                                 (cx + gap - bar_w // 2, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
+                                 (cx + 2, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
 
         # Flash khi chết hoặc teleport
         if self.state in (STATE_DEAD_WATER, STATE_DEAD_GUARD, STATE_TELEPORTING):
