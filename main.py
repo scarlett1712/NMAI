@@ -381,7 +381,16 @@ def draw_win_screen(surf, player, elapsed, opt_path, font_large, font_med, font_
     cy += 70
     draw_text_centered(surf, f"Your steps : {player.steps}", font_med, C_TEXT, cy, alpha)
     cy += 40
-    opt = len(opt_path) - 1 if opt_path else 0
+    
+    # Tính số bước tối ưu (chỉ đếm các bước di chuyển kề nhau, không đếm bước nhảy teleport)
+    opt = 0
+    if opt_path:
+        for i in range(len(opt_path) - 1):
+            x1, y1 = opt_path[i]
+            x2, y2 = opt_path[i+1]
+            if abs(x1 - x2) + abs(y1 - y2) == 1:
+                opt += 1
+                
     draw_text_centered(surf, f"Best possible : {opt}", font_med, C_PATH_OPT, cy, alpha)
     cy += 40
     draw_text_centered(surf, f"Time : {elapsed:.1f}s", font_med, C_TEXT, cy, alpha)
@@ -510,7 +519,7 @@ class Game:
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
-        self.pause_btn = pygame.Rect(SCREEN_W - 145, 25, 56, 56)
+        self.pause_btn = pygame.Rect(SCREEN_W - 106, 8, 40, 40)
         self.pause_popup_rect = pygame.Rect(SCREEN_W // 2 - 150, SCREEN_H // 2 - 125, 300, 250)
 
         self.font_large = pygame.font.SysFont('consolas', 48, bold=True)
@@ -804,32 +813,28 @@ class Game:
                 is_hover = self.pause_btn.collidepoint(mouse_pos)
                 
                 cx, cy = self.pause_btn.center
-                r = 28 # Bán kính nút (56 / 2)
+                r = 17 # Đồng bộ với bán kính nút Hint
                 
                 # Tính toán màu sắc dựa trên trạng thái Hover
                 if is_hover:
-                    body_color = (50, 65, 80)      # Nền xanh xám nhạt (sáng lên)
-                    bar_color = (255, 255, 255)    # Icon trắng tinh
-                    border_color = (100, 200, 255) # Viền phát sáng màu xanh dương
+                    body_color = (60, 75, 90)      # Nền sáng hơn khi hover
+                    bar_color = (255, 255, 255)    
+                    border_color = (130, 210, 255) 
                 else:
-                    body_color = (35, 35, 35)      # Nền xám tối
-                    bar_color = (180, 180, 180)    # Icon trắng xám
-                    border_color = (60, 60, 60)    # Viền chìm
+                    body_color = (35, 35, 35)      
+                    bar_color = (180, 180, 180)    
+                    border_color = (70, 70, 70)    
                 
-                # 1. Vẽ nền nút tròn
+                # 1. Vẽ nền và viền
                 pygame.draw.circle(self.screen, body_color, (cx, cy), r)
-                
-                # 2. Vẽ viền nút
                 pygame.draw.circle(self.screen, border_color, (cx, cy), r, 2)
                 
-                # 3. Vẽ biểu tượng Pause (||) căn giữa tuyệt đối
-                bar_w, bar_h = 6, 20
-                # Vạch trái
+                # 2. Vẽ biểu tượng Pause (||) nhỏ hơn để cân đối
+                bar_w, bar_h = 5, 14
                 pygame.draw.rect(self.screen, bar_color, 
-                                 (cx - 8, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
-                # Vạch phải
+                                 (cx - 6, cy - bar_h // 2, bar_w, bar_h), border_radius=1)
                 pygame.draw.rect(self.screen, bar_color, 
-                                 (cx + 2, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
+                                 (cx + 1, cy - bar_h // 2, bar_w, bar_h), border_radius=1)
 
         # Flash khi chết hoặc teleport
         if self.state in (STATE_DEAD_WATER, STATE_DEAD_GUARD, STATE_TELEPORTING):
