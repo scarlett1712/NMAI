@@ -58,84 +58,40 @@ def draw_stars(surf, stars, t):
 
 
 # ======================================================================
-#  Glowing Star for Exit (luôn hiển thị)
+#  Exit marker — vẽ sau lớp fog: luôn sáng trên map mờ
 # ======================================================================
 
-def draw_exit_star(surf, x, y, t):
-    """Ngôi sao phát sáng đẹp, mượt mà - luôn hiển thị rõ"""
+def draw_exit_star_bright(surf, x, y):
+    """Ngôi sao 5 cánh + quầng sáng tĩnh; gọi sau `blit(fog)` để không bị fog làm mờ."""
     r = tile_rect(x, y)
-    cx = r.centerx
-    cy = r.centery
-    base_size = TILE_W * 0.52   # Kích thước vừa phải
+    cx, cy = r.centerx, r.centery
+    glow = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
+    gcx, gcy = TILE_W // 2, TILE_H // 2
+    rr = min(TILE_W, TILE_H)
+    pygame.draw.circle(glow, (255, 255, 255, 55), (gcx, gcy), int(rr * 0.52))
+    pygame.draw.circle(glow, (255, 255, 255, 95), (gcx, gcy), int(rr * 0.34))
+    surf.blit(glow, r.topleft)
 
-    # Pulse nhịp nhàng
-    pulse = 0.85 + 0.15 * math.sin(t * 5.5)
-
-    # Glow ngoài cùng (mờ, to)
-    glow_surf = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
-    glow_size = int(base_size * 1.85 * pulse)
-    points = []
-    for i in range(8):
-        ang = i * math.pi / 4 + t * 1.2
-        rx = glow_size * (0.9 if i % 2 == 0 else 0.55)
-        ry = glow_size * (0.55 if i % 2 == 0 else 0.9)
-        px = cx + rx * math.cos(ang)
-        py = cy + ry * math.sin(ang)
-        points.append((px, py))
-    pygame.draw.polygon(glow_surf, (*C_EXIT, 45), points)
-    surf.blit(glow_surf, r.topleft)
-
-    # Glow giữa (sáng hơn)
-    glow_surf2 = pygame.Surface((TILE_W, TILE_H), pygame.SRCALPHA)
-    glow_size2 = int(base_size * 1.35 * pulse)
-    points2 = []
-    for i in range(8):
-        ang = i * math.pi / 4 - t * 0.8
-        rx = glow_size2 * (0.85 if i % 2 == 0 else 0.6)
-        ry = glow_size2 * (0.6 if i % 2 == 0 else 0.85)
-        px = cx + rx * math.cos(ang)
-        py = cy + ry * math.sin(ang)
-        points2.append((px, py))
-    pygame.draw.polygon(glow_surf2, (*C_EXIT, 90), points2)
-    surf.blit(glow_surf2, r.topleft)
-
-    # Ngôi sao chính (sáng nhất)
-    star_size = int(base_size * pulse)
-    star_points = []
-    for i in range(8):
-        ang = i * math.pi / 4
-        length = star_size if i % 2 == 0 else star_size * 0.42
-        px = cx + length * math.cos(ang)
-        py = cy + length * math.sin(ang)
-        star_points.append((px, py))
-
-    pygame.draw.polygon(surf, C_EXIT, star_points)
-    
-    # Điểm sáng ở giữa ngôi sao
-    pygame.draw.circle(surf, (255, 255, 255), (cx, cy), int(star_size * 0.28))
-
-    # Tia sáng nhỏ ngẫu nhiên (tăng độ lung linh)
-    for i in range(4):
-        ang = t * 3 + i * 1.57
-        length = star_size * 1.6
-        tx = cx + length * math.cos(ang)
-        ty = cy + length * math.sin(ang)
-        pygame.draw.line(surf, (*C_EXIT, 120), (cx, cy), (tx, ty), 2)
+    outer = rr * 0.42
+    inner = outer * 0.38
+    pts = []
+    for i in range(10):
+        ang = -math.pi / 2 + i * (math.pi / 5)
+        rad = outer if i % 2 == 0 else inner
+        pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
+    pygame.draw.polygon(surf, (255, 255, 255), pts)
+    pygame.draw.polygon(surf, C_LINE, pts, 1)
 
 # ======================================================================
-#  Fog of war - Exit luôn hiển thị
+#  Fog of war
 # ======================================================================
 
-def build_fog(player_x, player_y, visited, radius, exit_pos):
+def build_fog(player_x, player_y, visited, radius):
     fog = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
     fog.fill((*C_FOG, 255))
-    ex, ey = exit_pos
 
     for y in range(MAZE_ROWS):
         for x in range(MAZE_COLS):
-            if (x, y) == (ex, ey):
-                continue  # Exit không bị fog che
-
             dist = abs(x - player_x) + abs(y - player_y)
             r = tile_rect(x, y)
 
@@ -188,7 +144,7 @@ def draw_maze(surf, maze, player_x, player_y, visited, radius,
                 pygame.draw.rect(surf, C_FLOOR, r)
 
             if cell == EXIT:
-                draw_exit_star(surf, x, y, t)
+                pass  # ngôi sao đích vẽ sau lớp fog (draw_exit_star_bright)
             elif cell == WATER:
                 draw_water_tile(surf, x, y)
             elif cell == TELEPORT:
@@ -348,7 +304,7 @@ def draw_hint_button(surf, hint_btn, cooldown_remaining, font_small, t, mouse_po
     cooldown_max = 45.0
     progress = max(0.0, min(1.0, cooldown_remaining / cooldown_max))
     
-    base_r = 28
+    base_r = max(12, min(hint_btn.width, hint_btn.height) // 2 - 3)
     if cooldown_remaining <= 0:
         # --- TRẠNG THÁI SẴN SÀNG (PREMIUM) ---
         pulse = 2.0 * math.sin(t * 8)
@@ -441,6 +397,30 @@ def draw_win_screen(surf, player, elapsed, opt_path, font_large, font_med, font_
     cy += 30
     draw_text_centered(surf, "Press R to play again", font_small, C_TEXT_DIM, cy, alpha)
 
+# ======================================================================
+#  PAUSE
+# ======================================================================
+def draw_pause_overlay(surf, game, font_med, font_small):
+    # Lớp phủ mờ toàn màn hình
+    overlay = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 150))
+    surf.blit(overlay, (0, 0))
+
+    # Vẽ Popup Background
+    pygame.draw.rect(surf, (30, 30, 35), game.pause_popup_rect, border_radius=15)
+    pygame.draw.rect(surf, C_LINE, game.pause_popup_rect, 3, border_radius=15)
+    
+    draw_text_centered(surf, "PAUSED", game.font_large, (255, 255, 255), game.pause_popup_rect.top + 5) #sửa chữ đè nút
+
+    # Các nút: Resume, Replay, Exit
+    for btn, label, color in [
+        (game.resume_btn, "RESUME", C_PATH_OPT),
+        (game.replay_btn, "REPLAY", C_TELEPORT),
+        (game.exit_btn, "EXIT", C_GUARD_CHASE)
+    ]:
+        pygame.draw.rect(surf, color, btn, border_radius=10)
+        txt = font_small.render(label, True, (255, 255, 255))
+        surf.blit(txt, txt.get_rect(center=btn.center))
 
 # ======================================================================
 #  MENU + HƯỚNG DẪN
@@ -460,16 +440,22 @@ def draw_menu(surf, stars, t, play_btn, instr_btn, show_instructions, font_large
     instr_txt = font_med.render("HƯỚNG DẪN", True, (18, 10, 8))
     surf.blit(instr_txt, instr_txt.get_rect(center=instr_btn.center))
 
+    # FIX FRAME HƯỚNG DẪN BỊ ĐÈ NÉT (OVERDRAW)
     if show_instructions:
-        popup_w, popup_h = 650, 580
-        popup = pygame.Rect(SCREEN_W // 2 - popup_w//2, SCREEN_H // 2 - popup_h//2, popup_w, popup_h)
-        pygame.draw.rect(surf, (25, 20, 18), popup, border_radius=16)
-        pygame.draw.rect(surf, C_LINE, popup, 6, border_radius=16)
+        if show_instructions:
+            popup_w, popup_h = 650, 580
+            popup_x = SCREEN_W // 2 - popup_w // 2
+            popup_y = SCREEN_H // 2 - popup_h // 2
+            
+            # Tạo 1 Surface ảo có hỗ trợ Alpha để quản lý trọn vẹn UI Popup
+            popup_surf = pygame.Surface((popup_w, popup_h), pygame.SRCALPHA)
+            pygame.draw.rect(popup_surf, (25, 20, 18, 250), (0, 0, popup_w, popup_h), border_radius=16)
+            pygame.draw.rect(popup_surf, C_LINE, (0, 0, popup_w, popup_h), 6, border_radius=16)
 
-        title_surf = font_med.render("HƯỚNG DẪN", True, C_EXIT)
-        surf.blit(title_surf, (popup.centerx - title_surf.get_width()//2, popup.top + 28))
+            title_surf = font_med.render("HƯỚNG DẪN", True, C_EXIT)
+            popup_surf.blit(title_surf, (popup_w // 2 - title_surf.get_width() // 2, 28))
 
-        lines = [
+            lines = [
             "ĐIỀU KHIỂN:", "   WASD / ↑↓←→ : Di chuyển", "   R             : Tạo map mới / chơi lại", "",
             "MỤC TIÊU:", "   Hãy tìm ngôi sao sáng mà không bị bắt!", "",
             "CÁC YẾU TỐ:",
@@ -481,17 +467,25 @@ def draw_menu(surf, stars, t, play_btn, instr_btn, show_instructions, font_large
             "Chỉ bạn là có hào quang nhân vật chính ",""
             "_Nếu bạn không thấy lính, nó cũng sẽ không thấy bạn!_",
         ]
-        y = popup.top + 95
-        for line in lines:
-            color = (240, 230, 210) if "hào quang" in line  or "sáng" in line else C_TEXT_DIM
-            txt_surf = font_small.render(line, True, color)
-            surf.blit(txt_surf, (popup.left + 50, y))
-            y += 29
 
-        close_rect = pygame.Rect(popup.right - 52, popup.top + 20, 38, 38)
-        pygame.draw.circle(surf, C_GUARD_CHASE, close_rect.center, 19)
-        close_txt = font_small.render("×", True, (255, 255, 255))
-        surf.blit(close_txt, close_txt.get_rect(center=close_rect.center))
+            y = 95
+            for line in lines:
+                color = (240, 230, 210) if "hào quang" in line or "sáng" in line else C_TEXT_DIM
+                txt_surf = font_small.render(line, True, color)
+                # Tọa độ lúc này là tương đối so với popup_surf
+                popup_surf.blit(txt_surf, (50, y))
+                y += 29
+
+            close_center = (popup_w - 33, 39)
+            pygame.draw.circle(popup_surf, C_GUARD_CHASE, close_center, 19)
+            close_txt = font_small.render("×", True, (255, 255, 255))
+            popup_surf.blit(close_txt, close_txt.get_rect(center=close_center))
+
+            # Blit trọn gói lên màn hình duy nhất 1 lần
+            surf.blit(popup_surf, (popup_x, popup_y))
+    # Gom toàn bộ hình khối vẽ nền và text vào một layer ảo popup_surf (có cờ pygame.SRCALPHA), 
+    # sau đó mới dán (blit) layer này lên màn hình chính. Cách này ngăn lỗi trộn pixel (blend) của font 
+    # Antialiasing với background, giúp frame nét và hỗ trợ transparency đẹp mắt hơn.
 
     if not show_instructions:
         hint = font_small.render("Nhấn vào nút CHƠI hoặc HƯỚNG DẪN", True, C_TEXT_DIM)
@@ -508,7 +502,7 @@ STATE_DEAD_GUARD = 'dead_guard'
 STATE_TELEPORTING = 'teleporting'
 STATE_WIN = 'win'
 STATE_MENU = 'menu'
-
+STATE_PAUSE = 'pause'
 
 class Game:
     def __init__(self):
@@ -516,6 +510,8 @@ class Game:
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
+        self.pause_btn = pygame.Rect(SCREEN_W - 108, 8, 40, 40)
+        self.pause_popup_rect = pygame.Rect(SCREEN_W // 2 - 150, SCREEN_H // 2 - 125, 300, 250)
 
         self.font_large = pygame.font.SysFont('consolas', 48, bold=True)
         self.font_med   = pygame.font.SysFont('consolas', 28, bold=True)
@@ -525,15 +521,21 @@ class Game:
 
         self.play_btn = pygame.Rect(SCREEN_W // 2 - 130, SCREEN_H // 2 - 30, 260, 75)
         self.instr_btn = pygame.Rect(SCREEN_W // 2 - 130, SCREEN_H // 2 + 70, 260, 75)
-        self.hint_btn = pygame.Rect(SCREEN_W - 80, 25, 56, 56)
+        self.hint_btn = pygame.Rect(SCREEN_W - 58, 8, 40, 40)
 
         self.state = STATE_MENU
         self.show_instructions = False
+
+        self.resume_btn = pygame.Rect(SCREEN_W // 2 - 100, SCREEN_H // 2 - 70, 200, 50)
+        self.replay_btn = pygame.Rect(SCREEN_W // 2 - 100, SCREEN_H // 2 - 10, 200, 50)
+        self.exit_btn   = pygame.Rect(SCREEN_W // 2 - 100, SCREEN_H // 2 + 50, 200, 50)
 
         # Hint system
         self.hint_path = []
         self.hint_timer = 0.0
         self.hint_cooldown = 0.0
+        #Khai báo biến đếm giờ hiển thị cảnh báo
+        self.cd_warn_timer = 0.0
 
     def _new_game(self):
         self.maze = Maze()
@@ -577,6 +579,15 @@ class Game:
                 if event.key == pygame.K_r:
                     self._new_game()
                     return
+                
+                # Phím tắt P để Pause/Resume
+                if event.key == pygame.K_p and self.state in (STATE_PLAY, STATE_PAUSE):
+                    if self.state == STATE_PLAY:
+                        self.state = STATE_PAUSE
+                        self.pause_start_time = time.time()
+                    else:
+                        self.start_time += (time.time() - self.pause_start_time)
+                        self.state = STATE_PLAY
 
                 if self.state == STATE_PLAY:
                     moved = False
@@ -603,9 +614,29 @@ class Game:
                         close_rect = pygame.Rect(popup.right - 55, popup.top + 22, 38, 38)
                         if close_rect.collidepoint(mx, my):
                             self.show_instructions = False
+                #Sửa logic bắt event
                 elif self.state == STATE_PLAY:
-                    if self.hint_btn.collidepoint(mx, my) and self.hint_cooldown <= 0:
-                        self._show_hint()
+                    if self.pause_btn.collidepoint(mx, my):
+                        self.state = STATE_PAUSE
+                        self.pause_start_time = time.time()
+                    elif self.hint_btn.collidepoint(mx, my):
+                        if self.hint_cooldown <= 0:
+                            self._show_hint()
+                        else:
+                            # Bấm lúc đang cooldown -> Set 2 giây để hiện thông báo cảnh báo
+                            self.cd_warn_timer = 2.0 
+                
+                # Trạng thái Pause
+                elif self.state == STATE_PAUSE:
+                    if self.resume_btn.collidepoint(mx, my):
+                        # Bù đắp thời gian đã trôi qua khi dừng
+                        self.start_time += (time.time() - self.pause_start_time)
+                        self.state = STATE_PLAY
+                    elif self.replay_btn.collidepoint(mx, my):
+                        # Gọi hàm chơi lại map hiện tại
+                        self._replay_current_map()
+                    elif self.exit_btn.collidepoint(mx, my):
+                        self.state = STATE_MENU
 
     def _show_hint(self):
         self.hint_path = bfs(self.maze, (self.player.x, self.player.y), self.maze.exit)
@@ -651,9 +682,37 @@ class Game:
         self.flash_timer = 1.0
         self.flash_color = C_GUARD_CHASE
 
+    def _replay_current_map(self):
+            #Khởi tạo lại trạng thái game nhưng GIỮ NGUYÊN map hiện tại (self.maze)
+            
+            # 1. Đưa player về vạch xuất phát (dùng hàm reset có sẵn của class Player)
+            self.player.reset_to_start()
+            
+            # 2. Hồi sinh/Đưa lính canh về đúng vị trí xuất phát ban đầu của map này
+            self.guards = [Guard(gx, gy, self.maze) for gx, gy in self.maze.guard_starts]
+            
+            # 3. Reset lại toàn bộ thông số thời gian, trạng thái, hint
+            self.state = STATE_PLAY
+            self.start_time = time.time()
+            self.elapsed = 0.0
+            self.flash_timer = 0
+            self.win_alpha = 0
+            self.win_timer = 0.0
+            self.opt_path = []
+            self.opt_path_set = set()
+            self._teleport_dest = None
+
+            self.hint_path = []
+            self.hint_timer = 0.0
+            self.hint_cooldown = 0.0
+            self.cd_warn_timer = 0.0
+
     def _update(self, dt, t):
+        #Trừ hao thời gian của thông báo
         if self.state == STATE_PLAY:
             self.elapsed = time.time() - self.start_time
+            if self.cd_warn_timer > 0:
+                self.cd_warn_timer -= dt
 
             for g in self.guards:
                 g.update(self.player.x, self.player.y)
@@ -696,7 +755,7 @@ class Game:
 
         show_paths = (self.state == STATE_WIN)
 
-        # Vẽ mê cung + ngôi sao Exit
+        # Vẽ mê cung (sao đích vẽ sau fog)
         draw_maze(self.screen, self.maze, self.player.x, self.player.y,
                   self.player.visited, VISION_RADIUS,
                   list(self.player.path), self.opt_path, show_paths, t,
@@ -708,23 +767,71 @@ class Game:
 
         # Fog of war
         if self.state != STATE_WIN:
-            fog = build_fog(self.player.x, self.player.y, self.player.visited, VISION_RADIUS, self.maze.exit)
+            fog = build_fog(self.player.x, self.player.y, self.player.visited, VISION_RADIUS)
             self.screen.blit(fog, (0, 0))
 
+        # Đích: luôn sáng, vẽ trên fog / visited mờ
+        ex, ey = self.maze.exit
+        draw_exit_star_bright(self.screen, ex, ey)
+
+        # SỬA LOGIC NÚT GỢI Ý (CHỈ HIỂN THỊ BƯỚC TIẾP THEO)
         # Vẽ mũi tên gợi ý (nếu đang active)
         if self.hint_timer > 0 and len(self.hint_path) > 1:
-            for i in range(len(self.hint_path) - 1):
-                x1, y1 = self.hint_path[i]
-                x2, y2 = self.hint_path[i + 1]
-                start = (x1 * TILE_W + TILE_W // 2, y1 * TILE_H + TILE_H // 2)
-                end = (x2 * TILE_W + TILE_W // 2, y2 * TILE_H + TILE_H // 2)
-                draw_arrow(self.screen, start, end, (100, 255, 140), width=5)
+            # Lấy vị trí hiện tại của player [0] và ô cần đi tiếp theo [1]
+            x1, y1 = self.hint_path[0]
+            x2, y2 = self.hint_path[1]
+            start = (x1 * TILE_W + TILE_W // 2, y1 * TILE_H + TILE_H // 2)
+            end = (x2 * TILE_W + TILE_W // 2, y2 * TILE_H + TILE_H // 2)
+            draw_arrow(self.screen, start, end, (100, 255, 140), width=5)
+        # Bỏ vòng lặp for. Đường đi (path) do BFS trả về bao gồm cả điểm xuất phát tại index [0]. 
+        # Chỉ lấy index [0] nối với [1] để hướng dẫn user đi duy nhất 1 ô tiếp theo.
 
         # HUD
         if self.state != STATE_WIN:
             draw_hud(self.screen, self.player, self.elapsed, self.font_small)
             draw_guard_state_hud(self.screen, self.guards, self.font_small)
             draw_hint_button(self.screen, self.hint_btn, self.hint_cooldown, self.font_small, t, pygame.mouse.get_pos())
+            
+            #Render Text lên màn hình 
+            # Khối code AFTER: Thêm render cảnh báo hồi chiêu
+            if self.cd_warn_timer > 0:
+                msg = f"Đang hồi chiêu, hãy chờ {int(self.hint_cooldown) + 1}s"
+                msg_surf = self.font_med.render(msg, True, (255, 100, 100)) # Màu đỏ nhạt cảnh báo
+                self.screen.blit(msg_surf, (SCREEN_W // 2 - msg_surf.get_width() // 2, 80))
+        # Vẽ nút Pause nhỏ khi đang chơi
+        if self.state == STATE_PLAY:
+                mouse_pos = pygame.mouse.get_pos()
+                is_hover = self.pause_btn.collidepoint(mouse_pos)
+                
+                cx, cy = self.pause_btn.center
+                r = max(12, min(self.pause_btn.width, self.pause_btn.height) // 2 - 3)
+                
+                # Tính toán màu sắc dựa trên trạng thái Hover
+                if is_hover:
+                    body_color = (50, 65, 80)      # Nền xanh xám nhạt (sáng lên)
+                    bar_color = (255, 255, 255)    # Icon trắng tinh
+                    border_color = (100, 200, 255) # Viền phát sáng màu xanh dương
+                else:
+                    body_color = (35, 35, 35)      # Nền xám tối
+                    bar_color = (180, 180, 180)    # Icon trắng xám
+                    border_color = (60, 60, 60)    # Viền chìm
+                
+                # 1. Vẽ nền nút tròn
+                pygame.draw.circle(self.screen, body_color, (cx, cy), r)
+                
+                # 2. Vẽ viền nút
+                pygame.draw.circle(self.screen, border_color, (cx, cy), r, 2)
+                
+                # 3. Vẽ biểu tượng Pause (||) căn giữa tuyệt đối
+                bar_w = max(3, int(r * 0.22))
+                bar_h = max(10, int(r * 0.72))
+                gap = max(3, int(r * 0.24))
+                # Vạch trái
+                pygame.draw.rect(self.screen, bar_color, 
+                                 (cx - gap - bar_w // 2, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
+                # Vạch phải
+                pygame.draw.rect(self.screen, bar_color, 
+                                 (cx + gap - bar_w // 2, cy - bar_h // 2, bar_w, bar_h), border_radius=2)
 
         # Flash khi chết hoặc teleport
         if self.state in (STATE_DEAD_WATER, STATE_DEAD_GUARD, STATE_TELEPORTING):
@@ -752,6 +859,7 @@ class Game:
         bottom_hint = self.font_small.render("WASD / Arrow keys   R = map mới", True, C_TEXT_DIM)
         self.screen.blit(bottom_hint, (SCREEN_W // 2 - bottom_hint.get_width() // 2, SCREEN_H - 36))
 
-
+        if self.state == STATE_PAUSE:
+            draw_pause_overlay(self.screen, self, self.font_med, self.font_small)
 if __name__ == '__main__':
     Game().run()
