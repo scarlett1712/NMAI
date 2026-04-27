@@ -24,21 +24,6 @@ def draw_text_centered(surf, text, font, color, cy, alpha=255):
     s.set_alpha(alpha)
     surf.blit(s, (SCREEN_W // 2 - s.get_width() // 2, cy))
 
-
-def draw_arrow(surf, start, end, color, width=6):
-    pygame.draw.line(surf, color, start, end, width)
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    angle = math.atan2(dy, dx)
-    arrow_len = 18
-    arrow_angle = math.pi / 6
-    left = (end[0] - arrow_len * math.cos(angle - arrow_angle),
-            end[1] - arrow_len * math.sin(angle - arrow_angle))
-    right = (end[0] - arrow_len * math.cos(angle + arrow_angle),
-             end[1] - arrow_len * math.sin(angle + arrow_angle))
-    pygame.draw.polygon(surf, color, [end, left, right])
-
-
 # ======================================================================
 #  Stars background
 # ======================================================================
@@ -124,7 +109,8 @@ def draw_path_line(surf, path, color, width, alpha=255):
 
 
 def draw_maze(surf, maze, player_x, player_y, visited, radius,
-              player_path, opt_path, show_paths, t, win_timer=0):
+              player_path, opt_path, show_paths, t, win_timer=0,
+              hint_path_active=False, hint_bfs_path=[]):
     for y in range(maze.rows):
         for x in range(maze.cols):
             dist = abs(x - player_x) + abs(y - player_y)
@@ -151,6 +137,18 @@ def draw_maze(surf, maze, player_x, player_y, visited, radius,
                 draw_teleport_tile(surf, x, y)
 
     draw_wall_lines(surf, maze, player_x, player_y, visited, radius, show_paths)
+
+    # === VẼ ĐƯỜNG HINT ===
+    if hint_path_active and hint_bfs_path and len(hint_bfs_path) > 1:
+        draw_path_line(surf, hint_bfs_path, (255, 255, 255), 6, 220)
+        draw_path_line(surf, hint_bfs_path, (255, 200, 50), 8, 180)
+        if hint_bfs_path:
+            start_tile = hint_bfs_path[0]
+            end_tile = hint_bfs_path[-1]
+            sr = tile_rect(start_tile[0], start_tile[1])
+            er = tile_rect(end_tile[0], end_tile[1])
+            pygame.draw.circle(surf, (255, 255, 100), sr.center, 12, 3)
+            pygame.draw.circle(surf, (255, 255, 100), er.center, 12, 3)
 
     if show_paths:
         opt_path_set = set(opt_path)
@@ -465,7 +463,7 @@ def draw_menu(surf, stars, t, play_btn, instr_btn, show_instructions, font_large
             popup_surf.blit(title_surf, (popup_w // 2 - title_surf.get_width() // 2, 28))
 
             lines = [
-            "ĐIỀU KHIỂN:", "   WASD / ↑↓←→ : Di chuyển", "   R             : Tạo map mới / chơi lại", "",
+            "ĐIỀU KHIỂN:", "   WASD / ↑↓←→ : Di chuyển", "   R           : Tạo map mới / chơi lại", "",
             "MỤC TIÊU:", "   Hãy tìm ngôi sao sáng mà không bị bắt!", "",
             "CÁC YẾU TỐ:",
             "   • Nước độc: Rơi vào → Ựa X",
@@ -545,6 +543,8 @@ class Game:
         self.hint_cooldown = 0.0
         #Khai báo biến đếm giờ hiển thị cảnh báo
         self.cd_warn_timer = 0.0
+        self.show_hint_path = False
+        self.hint_path_display_timer = 0.0
 
     def _new_game(self):
         self.maze = Maze()
@@ -648,9 +648,10 @@ class Game:
                         self.state = STATE_MENU
 
     def _show_hint(self):
-        self.hint_path = bfs(self.maze, (self.player.x, self.player.y), self.maze.exit)
-        self.hint_timer = 7.0
+        self.hint_timer = 5.0
         self.hint_cooldown = 45.0
+        self.show_hint_path = True
+        self.hint_path_display_timer = 1.0
 
     def _on_player_move(self):
         px, py = self.player.x, self.player.y
@@ -733,6 +734,11 @@ class Game:
                 self.hint_timer -= dt
             if self.hint_cooldown > 0:
                 self.hint_cooldown -= dt
+            
+            if self.show_hint_path:
+                self.hint_path_display_timer -= dt
+                if self.hint_path_display_timer <= 0:
+                    self.show_hint_path = False
 
         elif self.state in (STATE_DEAD_WATER, STATE_DEAD_GUARD, STATE_TELEPORTING):
             self.flash_timer -= dt
@@ -764,11 +770,16 @@ class Game:
 
         show_paths = (self.state == STATE_WIN)
 
+        # Tính đường hint
+        hint_bfs = []
+        if self.show_hint_path:
+            hint_bfs = bfs(self.maze, (self.player.x, self.player.y), self.maze.exit)
         # Vẽ mê cung (sao đích vẽ sau fog)
         draw_maze(self.screen, self.maze, self.player.x, self.player.y,
                   self.player.visited, VISION_RADIUS,
                   list(self.player.path), self.opt_path, show_paths, t,
-                  self.win_timer if self.state == STATE_WIN else 0)
+                  self.win_timer if self.state == STATE_WIN else 0,
+                  self.show_hint_path, hint_bfs)
 
         for g in self.guards:
             draw_guard(self.screen, g, self.player.x, self.player.y, t)
@@ -782,18 +793,6 @@ class Game:
         # Đích: luôn sáng, vẽ trên fog / visited mờ
         ex, ey = self.maze.exit
         draw_exit_star_bright(self.screen, ex, ey)
-
-        # SỬA LOGIC NÚT GỢI Ý (CHỈ HIỂN THỊ BƯỚC TIẾP THEO)
-        # Vẽ mũi tên gợi ý (nếu đang active)
-        if self.hint_timer > 0 and len(self.hint_path) > 1:
-            # Lấy vị trí hiện tại của player [0] và ô cần đi tiếp theo [1]
-            x1, y1 = self.hint_path[0]
-            x2, y2 = self.hint_path[1]
-            start = (x1 * TILE_W + TILE_W // 2, y1 * TILE_H + TILE_H // 2)
-            end = (x2 * TILE_W + TILE_W // 2, y2 * TILE_H + TILE_H // 2)
-            draw_arrow(self.screen, start, end, (100, 255, 140), width=5)
-        # Bỏ vòng lặp for. Đường đi (path) do BFS trả về bao gồm cả điểm xuất phát tại index [0]. 
-        # Chỉ lấy index [0] nối với [1] để hướng dẫn user đi duy nhất 1 ô tiếp theo.
 
         # HUD
         if self.state != STATE_WIN:
